@@ -1,0 +1,184 @@
+---
+title: "Models"
+format:
+    html:
+        embed-resources: true
+---
+
+```{r, include = FALSE}
+library(tidyverse)
+library(kableExtra)
+library(caret)
+library(glmnet)
+knitr::opts_chunk$set(warning=FALSE, echo = FALSE)
+```
+
+```{r}
+variable_mapping <- c(
+  "B013801" = "Books in home",
+  "B034501" = "Use Internet for homework at home",
+  "B034601" = "Lives in home with mother",
+  "B034903" = "Keep working hard even when I feel like quitting",
+  "B035002" = "Paid attention and resisted distractions",
+  "B035101" = "Like complex problems more than easy ones",
+  "B035201" = "Felt awkward and out of place at school",
+  "C036501" = "Percent of teachers absent on average day",
+  "C038301" = "School participates in National School Lunch Program",
+  "C044006" = "Percent receiving ESL instruction",
+  "C051801" = "Percent receiving targeted Title I services",
+  "C060802" = "Prepare for state assessments in math",
+  "C0863I1" = "School type is private religiously affiliated",
+  "C087201" = "Number of volunteers",
+  "CENSDIV" = "Census division",
+  "CENSREG" = "Region of the country",
+  "CHRTRPT" = "School identified as charter",
+  "DRACEM" = "Race/ethnicity allowing multiple responses, student-reported",
+  "GENDER" = "Gender",
+  "M831503" = "Want to look smart in comparison to others in math",
+  "MODAGE" = "Below, at, or above age of most students in grade",
+  "PCTWHTC" = "Percent of White students",
+  "UTOL4" = "School location",
+  "T122201" = "Years taught elementary or secondary",
+  "T126008" = "Graduate major or minor in education with elementary",
+  "T132801" = "Possibility of student change in intelligence",
+  "T132802" = "Possibility of student change in intelligence",
+  "T132803" = "Possibility of student change in classroom behavior",
+  "T139901" = "Tenured in current school/district/diocese",
+  "TNSTUDM" = "Number of students in math class"
+)
+```
+
+# Student
+
+```{r, include = FALSE}
+df <- read_csv("student.csv")
+df <- df %>%
+    mutate_at(vars(-value), as.factor) %>%
+    mutate(value = ifelse(value >= median(value), 1, 0))
+colnames(df)[-ncol(df)] <- paste0(colnames(df)[-ncol(df)], ".")
+head(df)
+```
+
+```{r, echo = FALSE}
+set.seed(621)
+trainIndex <- createDataPartition(df$value, p = 0.8, list = FALSE)
+trainData <- df[trainIndex, ]
+testData <- df[-trainIndex, ]
+
+x_train <- model.matrix(~ . - 1, data = trainData %>% select(-value))
+y_train <- as.matrix(trainData$value)
+x_test <- model.matrix(~ . - 1, data = testData %>% select(-value))
+y_test <- as.matrix(testData$value)
+
+lasso <- glmnet(x_train, y_train, alpha = 1)
+plot(lasso, xvar = "lambda", label = TRUE)
+```
+
+```{r}
+i <- 7
+coeffs <- t(coef(lasso))[,-1]
+coef_df <- as.data.frame(coeffs[i, ]) %>%
+    rename(Coefficient = `coeffs[i, ]`) %>%
+    rownames_to_column("variable") %>%
+    mutate(Coefficient = round(Coefficient, 4)) %>%
+    filter(Coefficient != 0) %>%
+    arrange(desc(Coefficient))
+
+coef_df <- coef_df %>%
+    mutate(
+        Code = sub("\\..*", "", variable),
+        Description = sub(".*\\.", "", variable),
+        Variable = variable_mapping[Code]
+    ) %>%
+    select(
+        Variable,
+        Description,
+        Coefficient
+    ) %>%
+    arrange(desc(Coefficient))
+
+rownames(coef_df) <- NULL
+```
+
+```{r}
+kable(coef_df, format = "html", escape = FALSE)
+```
+
+
+```{r, echo = FALSE}
+ridge <- cv.glmnet(x_train, y_train, alpha = 0)
+pred <- predict(ridge, newx = x_test, s = "lambda.1se")
+print(paste("ridge mse:", round(mean((y_test - pred)^2), 4)))
+
+lasso <- cv.glmnet(x_train, y_train, alpha = 1)
+pred <- predict(lasso, newx = x_test, s = "lambda.min")
+print(paste("lasso mse:", round(mean((y_test - pred)^2), 4)))
+```
+
+# School
+
+```{r, include = FALSE}
+df <- read_csv("school.csv")
+df <- df %>%
+    mutate_at(vars(-value), as.factor) %>%
+    mutate(value = ifelse(value >= median(value), 1, 0))
+colnames(df)[-ncol(df)] <- paste0(colnames(df)[-ncol(df)], ".")
+head(df)
+```
+
+```{r, echo = FALSE}
+set.seed(621)
+trainIndex <- createDataPartition(df$value, p = 0.8, list = FALSE)
+trainData <- df[trainIndex, ]
+testData <- df[-trainIndex, ]
+
+x_train <- model.matrix(~ . - 1, data = trainData %>% select(-value))
+y_train <- as.matrix(trainData$value)
+x_test <- model.matrix(~ . - 1, data = testData %>% select(-value))
+y_test <- as.matrix(testData$value)
+
+lasso <- glmnet(x_train, y_train, alpha = 1)
+plot(lasso, xvar = "lambda", label = TRUE)
+```
+
+```{r}
+i <- 12
+coeffs <- t(coef(lasso))[,-1]
+coef_df <- as.data.frame(coeffs[i, ]) %>%
+    rename(Coefficient = `coeffs[i, ]`) %>%
+    rownames_to_column("variable") %>%
+    mutate(Coefficient = round(Coefficient, 4)) %>%
+    filter(Coefficient != 0) %>%
+    arrange(desc(Coefficient))
+
+coef_df <- coef_df %>%
+    mutate(
+        Code = sub("\\..*", "", variable),
+        Description = sub(".*\\.", "", variable),
+        Variable = variable_mapping[Code]
+    ) %>%
+    select(
+        Variable,
+        Description,
+        Coefficient
+    ) %>%
+    arrange(desc(Coefficient))
+
+rownames(coef_df) <- NULL
+```
+
+```{r}
+kable(coef_df, format = "html", escape = FALSE)
+```
+
+
+```{r, echo = FALSE}
+ridge <- cv.glmnet(x_train, y_train, alpha = 0)
+pred <- predict(ridge, newx = x_test, s = "lambda.1se")
+print(paste("ridge mse:", round(mean((y_test - pred)^2), 4)))
+
+lasso <- cv.glmnet(x_train, y_train, alpha = 1)
+pred <- predict(lasso, newx = x_test, s = "lambda.min")
+print(paste("lasso mse:", round(mean((y_test - pred)^2), 4)))
+```
+

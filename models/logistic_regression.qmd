@@ -1,0 +1,408 @@
+---
+title: "Models"
+format:
+    html:
+        embed-resources: true
+---
+
+
+```{r, include = FALSE}
+library(tidyverse)
+library(kableExtra)
+library(caret)
+knitr::opts_chunk$set(warning=FALSE)
+```
+
+```{r, include = FALSE}
+variable_mapping <- c(
+  "B013801" = "Books in home",
+  "B034501" = "Use Internet for homework at home",
+  "B034601" = "Lives in home with mother",
+  "B034903" = "Keep working hard even when I feel like quitting",
+  "B035002" = "Paid attention and resisted distractions",
+  "B035101" = "Like complex problems more than easy ones",
+  "B035201" = "Felt awkward and out of place at school",
+  "C036501" = "Percent of teachers absent on average day",
+  "C038301" = "School participates in National School Lunch Program",
+  "C044006" = "Percent receiving ESL instruction",
+  "C051801" = "Percent receiving targeted Title I services",
+  "C060802" = "Prepare for state assessments in math",
+  "C0863I1" = "School type is private religiously affiliated",
+  "C087201" = "Number of volunteers",
+  "CENSDIV" = "Census division",
+  "CENSREG" = "Region of the country",
+  "CHRTRPT" = "School identified as charter",
+  "DRACEM" = "Race/ethnicity allowing multiple responses, student-reported",
+  "GENDER" = "Gender",
+  "M831503" = "Want to look smart in comparison to others in math",
+  "MODAGE" = "Below, at, or above age of most students in grade",
+  "PCTWHTC" = "Percent of White students",
+  "UTOL4" = "School location",
+  "T122201" = "Years taught elementary or secondary",
+  "T126008" = "Graduate major or minor in education with elementary",
+  "T132801" = "Possibility of student change in intelligence",
+  "T132802" = "Possibility of student change in intelligence",
+  "T132803" = "Possibility of student change in classroom behavior",
+  "T139901" = "Tenured in current school/district/diocese",
+  "TNSTUDM" = "Number of students in math class"
+)
+```
+
+# Student
+```{r, include = FALSE}
+df <- read_csv("student.csv")
+df <- df %>%
+    mutate_at(vars(-value), as.factor) %>%
+    mutate(value = ifelse(value >= median(value), 1, 0))
+colnames(df)[-ncol(df)] <- paste0(colnames(df)[-ncol(df)], ".")
+head(df)
+```
+
+
+```{r, echo = FALSE}
+set.seed(621)
+trainIndex <- createDataPartition(df$value, p = 0.8, list = FALSE)
+trainData <- df[trainIndex, ]
+testData <- df[-trainIndex, ]
+
+forward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'forward',
+    trace = 0
+)
+
+backward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'backward',
+    trace = 0
+)
+
+both_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'both',
+    trace = 0
+)
+
+aic_forward <- AIC(forward_model)
+aic_backward <- AIC(backward_model)
+aic_both <- AIC(both_model)
+
+bic_forward <- BIC(forward_model)
+bic_backward <- BIC(backward_model)
+bic_both <- BIC(both_model)
+
+aic_bic_df <- data.frame(
+  Model = c("Forward", "Backward", "Both"),
+  AIC = c(aic_forward, aic_backward, aic_both),
+  BIC = c(bic_forward, bic_backward, bic_both)
+)
+
+kable(aic_bic_df, format = "html", escape = FALSE)
+```
+```{r, echo = FALSE}
+# summary(model)
+predicted <- predict(both_model, newdata = testData, type = "response")
+predicted <- ifelse(predicted >= 0.5, 1, 0)
+accuracy <- mean(predicted == testData$value)
+print(paste("Accuracy: ", round(accuracy, 4)))
+```
+
+```{r, include = FALSE}
+coef_summary <- summary(both_model)$coefficients[,c(1,4)]
+coef_df <- data.frame(Coefficient = names(coef(both_model)), 
+                        Effect = coef_summary[,1], 
+                        P_Value = coef_summary[,2])[-1,1:3]
+
+coef_df <- coef_df %>%
+    mutate(
+        Code = sub("\\..*", "", Coefficient),
+        Effect = round(Effect, 3),
+        Description = sub(".*\\.", "", Coefficient),
+        P_Value = format(coef_df$P_Value, scientific = FALSE),
+        P_Value = round(as.numeric(coef_df$P_Value), 3),
+        Variable = variable_mapping[Code]
+    ) %>%
+    select(
+        Variable,
+        Description,
+        Effect,
+        P_Value
+    ) %>%
+    arrange(abs(P_Value))
+
+rownames(coef_df) <- NULL
+```
+
+```{r, echo = FALSE}
+kable(coef_df, format = "html", escape = FALSE)
+```
+
+# Teacher
+
+```{r, include = FALSE}
+df <- read_csv("teacher.csv")
+df <- df %>%
+    mutate_at(vars(-value), as.factor) %>%
+    mutate(value = ifelse(value >= median(value), 1, 0))
+colnames(df)[-ncol(df)] <- paste0(colnames(df)[-ncol(df)], ".")
+head(df)
+```
+
+
+```{r, echo = FALSE}
+set.seed(621)
+trainIndex <- createDataPartition(df$value, p = 0.8, list = FALSE)
+trainData <- df[trainIndex, ]
+testData <- df[-trainIndex, ]
+
+forward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'forward',
+    trace = 0
+)
+
+backward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'backward',
+    trace = 0
+)
+
+both_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'both',
+    trace = 0
+)
+
+aic_forward <- AIC(forward_model)
+aic_backward <- AIC(backward_model)
+aic_both <- AIC(both_model)
+
+bic_forward <- BIC(forward_model)
+bic_backward <- BIC(backward_model)
+bic_both <- BIC(both_model)
+
+aic_bic_df <- data.frame(
+  Model = c("Forward", "Backward", "Both"),
+  AIC = c(aic_forward, aic_backward, aic_both),
+  BIC = c(bic_forward, bic_backward, bic_both)
+)
+
+kable(aic_bic_df, format = "html", escape = FALSE)
+```
+```{r, echo = FALSE}
+# summary(model)
+predicted <- predict(both_model, newdata = testData, type = "response")
+predicted <- ifelse(predicted >= 0.5, 1, 0)
+accuracy <- mean(predicted == testData$value)
+print(paste("Accuracy: ", round(accuracy, 4)))
+```
+
+```{r, include = FALSE}
+coef_summary <- summary(both_model)$coefficients[,c(1,4)]
+coef_df <- data.frame(Coefficient = names(coef(both_model)), 
+                        Effect = coef_summary[,1], 
+                        P_Value = coef_summary[,2])[-1,1:3]
+
+coef_df <- coef_df %>%
+    mutate(
+        Code = sub("\\..*", "", Coefficient),
+        Effect = round(Effect, 3),
+        Description = sub(".*\\.", "", Coefficient),
+        P_Value = format(coef_df$P_Value, scientific = FALSE),
+        P_Value = round(as.numeric(coef_df$P_Value), 3),
+        Variable = variable_mapping[Code]
+    ) %>%
+    select(
+        Variable,
+        Description,
+        Effect,
+        P_Value
+    ) %>%
+    arrange(abs(P_Value))
+
+rownames(coef_df) <- NULL
+```
+
+```{r, echo = FALSE}
+kable(coef_df, format = "html", escape = FALSE)
+```
+
+# School
+
+```{r, include = FALSE}
+df <- read_csv("school.csv")
+df <- df %>%
+    mutate_at(vars(-value), as.factor) %>%
+    mutate(value = ifelse(value >= median(value), 1, 0))
+colnames(df)[-ncol(df)] <- paste0(colnames(df)[-ncol(df)], ".")
+head(df)
+```
+
+
+```{r, echo = FALSE}
+set.seed(621)
+trainIndex <- createDataPartition(df$value, p = 0.8, list = FALSE)
+trainData <- df[trainIndex, ]
+testData <- df[-trainIndex, ]
+
+forward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'forward',
+    trace = 0
+)
+
+backward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'backward',
+    trace = 0
+)
+
+both_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'both',
+    trace = 0
+)
+
+aic_forward <- AIC(forward_model)
+aic_backward <- AIC(backward_model)
+aic_both <- AIC(both_model)
+
+bic_forward <- BIC(forward_model)
+bic_backward <- BIC(backward_model)
+bic_both <- BIC(both_model)
+
+aic_bic_df <- data.frame(
+  Model = c("Forward", "Backward", "Both"),
+  AIC = c(aic_forward, aic_backward, aic_both),
+  BIC = c(bic_forward, bic_backward, bic_both)
+)
+
+kable(aic_bic_df, format = "html", escape = FALSE)
+```
+```{r, echo = FALSE}
+# summary(model)
+predicted <- predict(both_model, newdata = testData, type = "response")
+predicted <- ifelse(predicted >= 0.5, 1, 0)
+accuracy <- mean(predicted == testData$value)
+print(paste("Accuracy: ", round(accuracy, 4)))
+```
+
+```{r, include = FALSE}
+coef_summary <- summary(both_model)$coefficients[,c(1,4)]
+coef_df <- data.frame(Coefficient = names(coef(both_model)), 
+                        Effect = coef_summary[,1], 
+                        P_Value = coef_summary[,2])[-1,1:3]
+
+coef_df <- coef_df %>%
+    mutate(
+        Code = sub("\\..*", "", Coefficient),
+        Effect = round(Effect, 3),
+        Description = sub(".*\\.", "", Coefficient),
+        P_Value = format(coef_df$P_Value, scientific = FALSE),
+        P_Value = round(as.numeric(coef_df$P_Value), 3),
+        Variable = variable_mapping[Code]
+    ) %>%
+    select(
+        Variable,
+        Description,
+        Effect,
+        P_Value
+    ) %>%
+    arrange(abs(P_Value))
+
+rownames(coef_df) <- NULL
+```
+
+```{r, echo = FALSE}
+kable(coef_df, format = "html", escape = FALSE)
+```
+
+# Other
+
+```{r, include = FALSE}
+df <- read_csv("other.csv")
+df <- df %>%
+    mutate_at(vars(-value), as.factor) %>%
+    mutate(value = ifelse(value >= median(value), 1, 0))
+colnames(df)[-ncol(df)] <- paste0(colnames(df)[-ncol(df)], ".")
+head(df)
+```
+
+
+```{r, echo = FALSE}
+set.seed(621)
+trainIndex <- createDataPartition(df$value, p = 0.8, list = FALSE)
+trainData <- df[trainIndex, ]
+testData <- df[-trainIndex, ]
+
+forward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'forward',
+    trace = 0
+)
+
+backward_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'backward',
+    trace = 0
+)
+
+both_model <- step(
+    glm(value ~ ., data = trainData, family = binomial),
+    direction = 'both',
+    trace = 0
+)
+
+aic_forward <- AIC(forward_model)
+aic_backward <- AIC(backward_model)
+aic_both <- AIC(both_model)
+
+bic_forward <- BIC(forward_model)
+bic_backward <- BIC(backward_model)
+bic_both <- BIC(both_model)
+
+aic_bic_df <- data.frame(
+  Model = c("Forward", "Backward", "Both"),
+  AIC = c(aic_forward, aic_backward, aic_both),
+  BIC = c(bic_forward, bic_backward, bic_both)
+)
+
+kable(aic_bic_df, format = "html", escape = FALSE)
+```
+```{r, echo = FALSE}
+# summary(model)
+predicted <- predict(both_model, newdata = testData, type = "response")
+predicted <- ifelse(predicted >= 0.5, 1, 0)
+accuracy <- mean(predicted == testData$value)
+print(paste("Accuracy: ", round(accuracy, 4)))
+```
+
+```{r, include = FALSE}
+coef_summary <- summary(both_model)$coefficients[,c(1,4)]
+coef_df <- data.frame(Coefficient = names(coef(both_model)), 
+                        Effect = coef_summary[,1], 
+                        P_Value = coef_summary[,2])[-1,1:3]
+
+coef_df <- coef_df %>%
+    mutate(
+        Code = sub("\\..*", "", Coefficient),
+        Effect = round(Effect, 3),
+        Description = sub(".*\\.", "", Coefficient),
+        P_Value = format(coef_df$P_Value, scientific = FALSE),
+        P_Value = round(as.numeric(coef_df$P_Value), 3),
+        Variable = variable_mapping[Code]
+    ) %>%
+    select(
+        Variable,
+        Description,
+        Effect,
+        P_Value
+    ) %>%
+    arrange(abs(P_Value))
+
+rownames(coef_df) <- NULL
+```
+
+```{r, echo = FALSE}
+kable(coef_df, format = "html", escape = FALSE)
+```
